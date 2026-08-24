@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+# Models, lenses and readout caches never belong in the repo.
+*.pt
+*.npz
+runs/
+cache/
+.cache/
+hf-cache/
