@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+# Lens files are 0.2-1.2 GB and models are 3-16 GB. Both live in the
+# HuggingFace cache, never in the repo.
+*.pt
+hf-cache/
