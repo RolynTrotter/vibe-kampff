@@ -1,0 +1,228 @@
+{
+  "model": "Qwen/Qwen3-8B",
+  "device": "mps",
+  "dtype": "bfloat16",
+  "lens_file": "qwen3-8b/jlens/Salesforce-wikitext/Qwen3-8B_jacobian_lens.pt",
+  "lens_revision": null,
+  "band_explored": [
+    12,
+    23
+  ],
+  "checks": [
+    {
+      "name": "transformers>=5.5",
+      "status": "PASS",
+      "detail": "5.15.1",
+      "data": {}
+    },
+    {
+      "name": "device",
+      "status": "PASS",
+      "detail": "MPS is available and selected",
+      "data": {}
+    },
+    {
+      "name": "env",
+      "status": "INFO",
+      "detail": "captured",
+      "data": {
+        "python": "3.14.6",
+        "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+        "machine": "arm64",
+        "torch": "2.13.0",
+        "transformers": "5.15.1",
+        "jlens": "unknown (installed from git)",
+        "device": "mps",
+        "mps_available": true,
+        "mps_built": true,
+        "cuda_available": false
+      }
+    },
+    {
+      "name": "from_hf layout",
+      "status": "PASS",
+      "detail": "n_layers=36, d_model=4096, block=Qwen3DecoderLayer",
+      "data": {
+        "n_layers": 36,
+        "d_model": 4096
+      }
+    },
+    {
+      "name": "hooks fire",
+      "status": "PASS",
+      "detail": "finite activations at layers [0, 18, 35], shapes {0: (1, 10, 4096), 18: (1, 10, 4096), 35: (1, 10, 4096)}",
+      "data": {}
+    },
+    {
+      "name": "lens load",
+      "status": "PASS",
+      "detail": "JacobianLens(d_model=4096, n_prompts=461, source_layers=[0..34] (35 layers)) in 33.6s",
+      "data": {
+        "d_model": 4096,
+        "n_prompts": 461,
+        "source_layers": [
+          0,
+          34
+        ],
+        "n_source_layers": 35
+      }
+    },
+    {
+      "name": "lens/model agreement",
+      "status": "PASS",
+      "detail": "both d_model=4096",
+      "data": {}
+    },
+    {
+      "name": "model answers: Fact: The currency used in the country...",
+      "status": "PASS",
+      "detail": "top-1 ' euro'; expected answer at rank 1",
+      "data": {}
+    },
+    {
+      "name": "bridge 'Italy' in readout",
+      "status": "PASS",
+      "detail": "best rank 1 at layer 24, position 12 (' is') \u2014 never written in the prompt",
+      "data": {
+        "best_rank": 1,
+        "best_layer": 24,
+        "best_position": 12,
+        "best_position_token": " is",
+        "logit_lens_best_rank": 1,
+        "logit_lens_best_layer": 24
+      }
+    },
+    {
+      "name": "  vs logit lens (Italy)",
+      "status": "INFO",
+      "detail": "jacobian rank 1 at layer 24; logit lens rank 1 at layer 24",
+      "data": {}
+    },
+    {
+      "name": "  layers carrying 'Italy' (top-20)",
+      "status": "INFO",
+      "detail": "17-34 (17 layers of 36): [17, 18, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]",
+      "data": {
+        "layers_carrying": [
+          17,
+          18,
+          19,
+          20,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34
+        ]
+      }
+    },
+    {
+      "name": "model answers: Fact: The capital of the country where...",
+      "status": "PASS",
+      "detail": "top-1 ' Paris'; expected answer at rank 1",
+      "data": {}
+    },
+    {
+      "name": "bridge 'France' in readout",
+      "status": "PASS",
+      "detail": "best rank 1 at layer 10, position 4 (' of') \u2014 never written in the prompt",
+      "data": {
+        "best_rank": 1,
+        "best_layer": 10,
+        "best_position": 4,
+        "best_position_token": " of",
+        "logit_lens_best_rank": 1,
+        "logit_lens_best_layer": 10
+      }
+    },
+    {
+      "name": "  vs logit lens (France)",
+      "status": "INFO",
+      "detail": "jacobian rank 1 at layer 10; logit lens rank 1 at layer 10",
+      "data": {}
+    },
+    {
+      "name": "  layers carrying 'France' (top-20)",
+      "status": "INFO",
+      "detail": "8-34 (27 layers of 36): [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]",
+      "data": {
+        "layers_carrying": [
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34
+        ]
+      }
+    },
+    {
+      "name": "per-readout cost",
+      "status": "INFO",
+      "detail": "0.017s per position over 12 layers; a 500-transcript run at ~200 scored positions each is ~0.5h",
+      "data": {
+        "timings": [
+          {
+            "n_positions": 1,
+            "seconds": 0.9843556880950928,
+            "alloc_gb": 16.381473792
+          },
+          {
+            "n_positions": 4,
+            "seconds": 0.9320199489593506,
+            "alloc_gb": 16.381473792
+          },
+          {
+            "n_positions": 16,
+            "seconds": 0.9055628776550293,
+            "alloc_gb": 16.381473792
+          },
+          {
+            "n_positions": 64,
+            "seconds": 1.1180238723754883,
+            "alloc_gb": 16.381473792
+          }
+        ],
+        "seconds_per_position": 0.017469123005867004,
+        "estimated_full_run_hours": 0.485253416829639
+      }
+    },
+    {
+      "name": "peak process RSS",
+      "status": "INFO",
+      "detail": "5.17 GB",
+      "data": {
+        "peak_rss_gb": 5.169496064
+      }
+    }
+  ]
+}

@@ -169,20 +169,22 @@ Things that were not obvious from the docs, recorded so nobody re-derives them:
   `d_model` mismatch, which check 3 catches explicitly.
 - **`uv venv` does not install pip.** Use `uv pip install --python .venv/bin/python`.
 
-## What has actually been verified, and where
+## Status: answered — MPS works
 
-Honest status, because it determines how much to trust this:
+Verified on the target machine (M2 Max, 64 GB, macOS Tahoe): **10 PASS, 0 FAIL**
+on both Qwen3-1.7B and Qwen3-8B, bf16 on MPS. Nothing fell back to CPU, no
+memory ceiling, no wired-limit tuning needed. Fallback rung 1.
 
-- **Verified on Linux/CPU (in the container this was written in):** the full code
-  path — install, layout resolution, hooks, lens download, readout, and the
-  factual-recall reproduction — against real `Qwen/Qwen3-1.7B` and its published
-  lens. See `FINDINGS.md` for the numbers.
-- **Not verified:** anything MPS-specific. There is no Apple GPU in that
-  container. Device selection, `mps.empty_cache`, memory reporting, and bf16
-  behaviour on MPS are all written but unexercised.
+Headlines:
 
-So: the script is known-good apart from the device. **Running it on the Mac
-Studio is the actual spike** — that's the part nobody has done yet.
+- **bf16 on MPS matches fp32 on CPU** — identical ranks and identical
+  carrying-layer sets on the 1.7B, across both device and dtype.
+- **A full 500-transcript run on the 8B is ~0.5 h.** The pipeline is cheap
+  enough that re-running everything after a lexicon change is nothing.
+- **Memory is not a constraint**: 16.4 GB accelerator for the 8B, flat across
+  the whole position sweep. A 64 GB machine has room for 14B or 32B if needed.
+- **Band identification is subtler than one model suggested** — see
+  `FINDINGS.md`, which corrects a metric of mine that #6 should not inherit.
 
 ## Deliberately not here
 

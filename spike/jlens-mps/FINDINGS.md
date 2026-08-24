@@ -1,14 +1,19 @@
 # Findings — jlens spike (issue #4)
 
-Two sections: what has been verified, and the Apple Silicon run that is still
-outstanding. Fill in the second section on the Mac Studio and close #4.
+**Answered: the Jacobian lens runs on Apple Silicon, and comfortably.** Both
+Qwen3-1.7B and Qwen3-8B pass every check on MPS in bf16.
+
+Recorded below: the Linux/CPU run that established the code path, then the Mac
+runs that answered the actual question — including a correction to a metric of
+mine that #6 should not inherit.
 
 ---
 
-## Verified: Linux / CPU / float32
+## Linux / CPU / float32 — established the code path
 
 Run in the container this spike was written in. No Apple GPU present, so this
-establishes the **code path**, not the MPS answer.
+established the **code path** only. It also turned out to double as the fp32
+reference for the precision comparison below.
 
 | | |
 |---|---|
@@ -109,38 +114,117 @@ not obvious before measuring.
 
 ---
 
-## Outstanding: Apple Silicon
+## Resolved: Apple Silicon — it works
 
-Nothing MPS-specific has been exercised. To close #4:
+Run on the target machine (Mac Studio 2023, M2 Max, 64 GB, macOS Tahoe 26.5.2),
+Python 3.14.6, torch 2.13.0, transformers 5.15.1.
 
-```bash
-cd spike/jlens-mps
-./setup.sh
-./run.sh --model qwen3-1.7b     # confirm the verified path still passes on MPS
-./run.sh --model qwen3-8b       # the real target
-./run.sh --model qwen3-8b --precision-check
-```
+| Run | Verdict |
+|---|---|
+| Qwen3-1.7B, MPS, bf16 | **10 PASS, 0 FAIL** |
+| Qwen3-8B, MPS, bf16 | **10 PASS, 0 FAIL** |
 
-Record below:
+**Fallback rung 1** from #4: works as-is on MPS. Nothing fell back to CPU,
+`iogpu.wired_limit_mb` was not touched, and the position sweep never hit a
+ceiling. #4 is answered.
 
-- [ ] **Does MPS work at all?** Device selected, model loads, hooks fire.
-- [ ] **Do the probes still pass on 8B?** Bridge entities found, and at what
-      ranks/layers. If the band sits differently on 8B than the 18–25 seen on
-      1.7B, that's the single most useful number here for #6.
-- [ ] **bf16 vs fp32 agreement** (`--precision-check`). The specific risk:
-      `HFLensModel.unembed` casts the transported residual back to the lm_head's
-      dtype, so a bf16 model does its final norm and unembed in bf16 even though
-      the transport is fp32.
-- [ ] **Memory ceiling.** Where does the position sweep stop? Did
-      `iogpu.wired_limit_mb` need raising?
-- [ ] **`PYTORCH_ENABLE_MPS_FALLBACK`.** Did anything actually fall back to CPU?
-      `run.sh` sets it by default — if a run only works with it, name the op.
-- [ ] **Timing**, for #9's ETA.
+### Precision — answered for free, without `--precision-check`
 
-### Result
+The 1.7B model was run at CPU/fp32 (Linux) and MPS/bf16 (Mac). Comparing them
+changes device *and* dtype at once, which is exactly the combination that
+matters in practice:
 
-_(fill in — then close #4 and start #5 and #6)_
+| | CPU / fp32 | MPS / bf16 |
+|---|---|---|
+| `France` best | rank 1, layer 18, pos 4 | rank 1, layer 18, pos 4 |
+| `Italy` best | rank 5, layer 22, pos 5 | rank 5, layer 21, pos 5 |
+| layers carrying `Italy` | 18-25 | 18-25 (identical) |
+| layers carrying `France` | 6-26 | 6-26 (identical) |
 
-Device:
-Verdict:
-Notes:
+Identical ranks, identical carrying sets. The only difference is which layer won
+a near-tie for `Italy` (22 vs 21, both rank 5). bf16 on MPS is not degrading the
+readout. `--precision-check` is now largely redundant — keep it for spot checks,
+don't gate anything on it.
+
+### Speed — MPS is 6x CPU, and the whole project is cheap
+
+| | per position | est. 500-transcript run |
+|---|---|---|
+| 1.7B, CPU/fp32 | 0.044 s | ~1.2 h |
+| 1.7B, MPS/bf16 | 0.007 s | ~0.2 h |
+| 8B, MPS/bf16 | 0.017 s | ~0.5 h |
+
+**A full experiment run on the 8B is about half an hour.** That reframes the
+project: the runner in #9 does not need to be clever about batching or resuming,
+and re-running the whole matrix after a lexicon change is cheap enough to do
+freely. Batching positions stays nearly free (1 position 0.98 s, 64 positions
+1.12 s).
+
+### Memory — not a constraint
+
+Accelerator allocation sat flat at **16.38 GB** for the 8B across the entire
+1→64 position sweep. It never moved, because `apply()` sends the logits to CPU
+(`.float().cpu()`) as it goes — so the accelerator holds the model and nothing
+that scales with the readout.
+
+Note the two memory figures are *not* additive and the RSS one is misleading in
+isolation: peak process RSS was 5.17 GB while the accelerator held 16.38 GB. On
+unified memory the weights live in the MPS allocator. Read the accelerator
+figure as "the model", and don't sum them.
+
+Headroom on a 64 GB machine is therefore large. Qwen3-14B or 32B (both have
+published lenses) would fit if 8B turns out too small to show anything.
+
+### Band identification is harder than the 1.7B run suggested — for #6
+
+This is the most important thing the Mac runs turned up, and it complicates what
+I wrote earlier from the 1.7B CPU run alone.
+
+Best-hit layer, as a fraction of depth:
+
+| | `Italy` | `France` |
+|---|---|---|
+| 1.7B (28 layers) | L21 (0.75) | L18 (0.64) |
+| 8B (36 layers) | L24 (0.67) | **L10 (0.28)** |
+
+The two probes disagree, and they disagree *differently* at different scales.
+`France` — a strong, direct association from "Eiffel Tower" — resolves at 0.64
+depth on 1.7B but 0.28 depth on 8B. `Italy`, reached by the more oblique "shaped
+like a boot", stays around 0.67-0.75 on both.
+
+Two conclusions for #6:
+
+1. **There is no single band readable from a couple of probes.** Where content
+   appears depends on how hard the inference is, and scales with model capacity.
+   #6 must use a set of probes spanning difficulty — the paper's own
+   `lens-eval-*.json` sets, not my two toy prompts — and define the band by
+   where it works across that set.
+
+2. **"Layers carrying the target in top-20" is the wrong metric, and it is mine,
+   so this is a correction.** Every carrying range above runs to layer 34 of 36
+   or 26 of 28 — i.e. right up to the last fitted layer. That is unsurprising and
+   uninformative: near the output, answer-related tokens are readable *because
+   the model is about to say them*. It is not evidence of workspace content. The
+   paper's band is a mid-network phenomenon distinguished from the output
+   distribution. #6 should identify the band by where the lens reads content the
+   final layer does *not* — a contrast against the model's own output — rather
+   than by raw target presence, which my metric measures.
+
+I would not use the numbers in this document to set the band. They are enough to
+show the instrument works; #6 still has to do its job properly.
+
+### J-lens vs logit lens — these probes cannot tell them apart
+
+On the 8B, both methods hit rank 1 at the *same layer* for both probes (`Italy`
+L24, `France` L10). On 1.7B the gap was small (`Italy` rank 5 vs 7). So the
+earlier note stands and strengthens: these probes are too easy to discriminate
+between the methods. Any claim about J-lens being the better readout has to come
+from the paper's evaluation sets, not from here.
+
+---
+
+## Still outstanding
+
+- [ ] `--precision-check` on the 8B specifically. Low priority given the 1.7B
+      cross-device agreement, but 8B bf16 has not been compared to 8B fp32.
+- [ ] Nothing else. #4 is answered: **MPS works, use it.**
