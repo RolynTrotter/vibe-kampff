@@ -25,6 +25,9 @@ packages = ["vibekampff"]
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+# Spike code is throwaway by design and exempt from the project's standards
+# (see CLAUDE.md), so `ruff check .` stays meaningful for real code.
+extend-exclude = ["spike"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

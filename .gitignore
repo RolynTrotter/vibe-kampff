@@ -8,4 +8,5 @@ __pycache__/
 *.npz
 runs/
 cache/
+.cache/
 hf-cache/

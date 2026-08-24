@@ -69,10 +69,11 @@ class Readout:
         tracked_ids: Target token ids ranks were computed for.
         tracked_ranks: `[n_layers, n_positions, n_tracked]`, 0-based; 0 means
             the target was the lens's top choice at that cell.
-        output_topk_ids: The model's own final-layer top-k at each position —
-            what it is actually about to say. Kept because "the lens reads
-            something the output does not" is the contrast that distinguishes
-            workspace content from imminent output.
+        output_topk_ids: `[n_positions, k]` — the model's own final-layer
+            top-k at each position, i.e. what it is actually about to say.
+            Note there is no layer axis here, unlike `topk_ids`. Kept because
+            "the lens reads something the output does not" is the contrast
+            that distinguishes workspace content from imminent output.
     """
 
     layers: list[int]
